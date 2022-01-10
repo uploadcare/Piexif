@@ -13,6 +13,16 @@ class TYPES:
     DFloat = 12
 
 
+SIMPLE_NUMERICS = [
+    TYPES.Byte,
+    TYPES.Short,
+    TYPES.Long,
+    TYPES.SByte,
+    TYPES.SShort,
+    TYPES.SLong
+]
+
+
 TAGS = {
     'Image': {11: {'name': 'ProcessingSoftware', 'type': TYPES.Ascii},
                254: {'name': 'NewSubfileType', 'type': TYPES.Long},
