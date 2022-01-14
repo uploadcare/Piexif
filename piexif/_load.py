@@ -127,8 +127,13 @@ class _ExifReader(object):
             v_set = (value_type, value_num, value, tag)
             if tag in TAGS[t]:
                 converted = self.convert_value(v_set)
-                if value_type != TAGS[t][tag]['type']:
-                    converted = coerce(converted, value_type, TAGS[t][tag]['type'])
+                expected_value_type = TAGS[t][tag]['type']
+                if value_type != expected_value_type:
+                    try:
+                        converted = coerce(converted, value_type, expected_value_type)
+                    except ValueError:
+                        # Skip if coercion failed
+                        continue
                 if isinstance(converted, tuple) and (len(converted) == 1):
                     converted = converted[0]
                 ifd_dict[tag] = converted
@@ -273,7 +278,7 @@ def _get_key_name_dict(exif_dict):
 
 def coerce(value, type, target):
     if target == TYPES.Undefined:
-        if type in SIMPLE_NUMERICS:
+        if type == TYPES.Byte:
             # Interpret numbers as byte values, to fit Pillow behaviour
             return b''.join(min(x, 255).to_bytes(1, 'big') for x in value)
     elif target in SIMPLE_NUMERICS:
