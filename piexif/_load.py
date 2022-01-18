@@ -126,7 +126,17 @@ class _ExifReader(object):
             p_and_value.append((pointer, value_type, value_num, value))
             v_set = (value_type, value_num, value, tag)
             if tag in TAGS[t]:
-                ifd_dict[tag] = self.convert_value(v_set)
+                converted = self.convert_value(v_set)
+                expected_value_type = TAGS[t][tag]['type']
+                if value_type != expected_value_type:
+                    try:
+                        converted = coerce(converted, value_type, expected_value_type)
+                    except ValueError:
+                        # Skip if coercion failed
+                        continue
+                if isinstance(converted, tuple) and (len(converted) == 1):
+                    converted = converted[0]
+                ifd_dict[tag] = converted
             elif read_unknown:
                 ifd_dict[tag] = (v_set[0], v_set[1], v_set[2], self.tiftag)
             #else:
@@ -252,10 +262,7 @@ class _ExifReader(object):
                              "type to decode.\n" +
                              "tag: " + str(val[3]) + "\ntype: " + str(t))
 
-        if isinstance(data, tuple) and (len(data) == 1):
-            return data[0]
-        else:
-            return data
+        return data
 
 
 def _get_key_name_dict(exif_dict):
@@ -268,3 +275,13 @@ def _get_key_name_dict(exif_dict):
         "thumbnail":exif_dict["thumbnail"],
     }
     return new_dict
+
+def coerce(value, type, target):
+    if target == TYPES.Undefined:
+        if type == TYPES.Byte:
+            # Interpret numbers as byte values, to fit Pillow behaviour
+            return b''.join(min(x, 255).to_bytes(1, 'big') for x in value)
+    elif target in SIMPLE_NUMERICS:
+        if type in SIMPLE_NUMERICS:
+            return value
+    raise ValueError('cannot coerce %s to %s' % (type, target))
