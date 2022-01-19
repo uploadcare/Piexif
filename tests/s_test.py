@@ -655,11 +655,6 @@ class UTests(unittest.TestCase):
         self.assertEqual(ifd[65535][1], 0)
         self.assertEqual(ifd[65535][2], b"\x00\x00")
 
-    def test_ExifReader_convert_value_fail(self):
-        er = piexif._load._ExifReader(I1)
-        with self.assertRaises(ValueError):
-            er.convert_value((None, None, None, None))
-
     def test_split_into_segments_fail1(self):
         with self.assertRaises(InvalidImageDataError):
             _common.split_into_segments(b"I'm not JPEG")

@@ -103,6 +103,42 @@ class _ExifReader(object):
                 else:
                     raise InvalidImageDataError("Given file is neither JPEG nor TIFF.")
 
+    def _read_tag(self, pointer):
+        tag, value_type, value_num = unpack_from(
+            self.endian_mark + "HHL", self.tiftag, pointer
+        )
+        # Treat unknown types as `Undefined`
+        value_length = TYPE_LENGTH.get(value_type, 1)
+        value_length_total = value_length * value_num
+        if value_length_total > 4:
+            data_pointer = unpack_from(
+                self.endian_mark + "L", self.tiftag, pointer + 8
+            )[0]
+        else:
+            data_pointer = pointer + 8
+
+        format = TYPE_FORMAT.get(value_type, None)
+
+        if format is None:
+            # Ascii, Undefined and unknown types
+            if value_type == TYPES.Ascii:
+                # Crop ending zero
+                value_length_total = max(0, value_length_total - 1)
+            raw_value = self.tiftag[data_pointer:data_pointer+value_length_total]
+            values = (raw_value, )
+        else:
+            # Unpacked types
+            values = unpack_from(
+                self.endian_mark + format * value_num, self.tiftag, data_pointer
+            )
+            # Collate rationals
+            if len(format) > 1:
+                stride = len(format)
+                values = tuple(
+                    values[i*stride:(i+1)*stride] for i in range(value_num)
+                )
+        return tag, value_type, tuple(values)
+
     def get_ifd_dict(self, pointer, ifd_name, read_unknown=False):
         ifd_dict = {}
         tag_count = unpack_from(self.endian_mark + "H",
@@ -114,24 +150,24 @@ class _ExifReader(object):
             t = ifd_name
         for x in range(tag_count):
             pointer = offset + 12 * x
-            tag, value_type, value_num = unpack_from(
-                self.endian_mark + "HHL", self.tiftag, pointer)
-            value = self.tiftag[pointer+8: pointer+12]
-            v_set = (value_type, value_num, value, tag)
+            tag, value_type, values = self._read_tag(pointer)
             if tag in TAGS[t]:
-                converted = self.convert_value(v_set)
                 expected_value_type = TAGS[t][tag]['type']
                 if value_type != expected_value_type:
                     try:
-                        converted = coerce(converted, value_type, expected_value_type)
+                        values = coerce(values, value_type, expected_value_type)
                     except ValueError:
                         # Skip if coercion failed
                         continue
-                if isinstance(converted, tuple) and (len(converted) == 1):
-                    converted = converted[0]
-                ifd_dict[tag] = converted
+                if len(values) == 1:
+                    values = values[0]
+                ifd_dict[tag] = values
             elif read_unknown:
-                ifd_dict[tag] = (v_set[0], v_set[1], v_set[2], self.tiftag)
+                value_num, = unpack_from(
+                    self.endian_mark + "L", self.tiftag, pointer + 4
+                )
+                pointer_or_value = self.tiftag[pointer + 8: pointer + 12]
+                ifd_dict[tag] = value_type, value_num, pointer_or_value, self.tiftag
             else:
                 pass
 
@@ -139,96 +175,6 @@ class _ExifReader(object):
             pointer = offset + 12 * tag_count
             ifd_dict["first_ifd_pointer"] = self.tiftag[pointer:pointer + 4]
         return ifd_dict
-
-    def convert_value(self, val):
-        data = None
-        t = val[0]
-        length = val[1]
-        value = val[2]
-
-        if t == TYPES.Byte: # BYTE
-            if length > 4:
-                pointer = unpack_from(self.endian_mark + "L", value)[0]
-                data = unpack_from("B" * length, self.tiftag, pointer)
-            else:
-                data = unpack_from("B" * length, value)
-        elif t == TYPES.Ascii: # ASCII
-            if length > 4:
-                pointer = unpack_from(self.endian_mark + "L", value)[0]
-                data = self.tiftag[pointer: pointer+length - 1]
-            else:
-                data = value[0: length - 1]
-        elif t == TYPES.Short: # SHORT
-            if length > 2:
-                pointer = unpack_from(self.endian_mark + "L", value)[0]
-                data = unpack_from(self.endian_mark + "H" * length,
-                                   self.tiftag, pointer)
-            else:
-                data = unpack_from(self.endian_mark + "H" * length, value)
-        elif t == TYPES.Long: # LONG
-            if length > 1:
-                pointer = unpack_from(self.endian_mark + "L", value)[0]
-                data = unpack_from(self.endian_mark + "L" * length,
-                                   self.tiftag, pointer)
-            else:
-                data = unpack_from(self.endian_mark + "L" * length, value)
-        elif t == TYPES.Rational: # RATIONAL
-            pointer = unpack_from(self.endian_mark + "L", value)[0]
-            data = tuple(
-                unpack_from(self.endian_mark + "LL",
-                            self.tiftag, pointer + x * 8)
-                for x in range(length)
-            )
-        elif t == TYPES.SByte: # SIGNED BYTES
-            if length > 4:
-                pointer = unpack_from(self.endian_mark + "L", value)[0]
-                data = unpack_from("b" * length, self.tiftag, pointer)
-            else:
-                data = unpack_from("b" * length, value)
-        elif t == TYPES.Undefined: # UNDEFINED BYTES
-            if length > 4:
-                pointer = unpack_from(self.endian_mark + "L", value)[0]
-                data = self.tiftag[pointer: pointer+length]
-            else:
-                data = value[0: length]
-        elif t == TYPES.SShort: # SIGNED SHORT
-            if length > 2:
-                pointer = unpack_from(self.endian_mark + "L", value)[0]
-                data = unpack_from(self.endian_mark + "h" * length,
-                                   self.tiftag, pointer)
-            else:
-                data = unpack_from(self.endian_mark + "h" * length, value)
-        elif t == TYPES.SLong: # SLONG
-            if length > 1:
-                pointer = unpack_from(self.endian_mark + "L", value)[0]
-                data = unpack_from(self.endian_mark + "l" * length,
-                                   self.tiftag, pointer)
-            else:
-                data = unpack_from(self.endian_mark + "l" * length, value)
-        elif t == TYPES.SRational: # SRATIONAL
-            pointer = unpack_from(self.endian_mark + "L", value)[0]
-            data = tuple(
-              unpack_from(self.endian_mark + "ll",
-                          self.tiftag, pointer + x * 8)
-              for x in range(length)
-            )
-        elif t == TYPES.Float: # FLOAT
-            if length > 1:
-                pointer = unpack_from(self.endian_mark + "L", value)[0]
-                data = unpack_from(self.endian_mark + "f" * length,
-                                   self.tiftag, pointer)
-            else:
-                data = unpack_from(self.endian_mark + "f" * length, value)
-        elif t == TYPES.DFloat: # DOUBLE
-            pointer = unpack_from(self.endian_mark + "L", value)[0]
-            data = unpack_from(self.endian_mark + "d" * length,
-                               self.tiftag, pointer)
-        else:
-            raise ValueError("Exif might be wrong. Got incorrect value " +
-                             "type to decode.\n" +
-                             "tag: " + str(val[3]) + "\ntype: " + str(t))
-
-        return data
 
 
 def _get_key_name_dict(exif_dict):
@@ -246,7 +192,7 @@ def coerce(value, type, target):
     if target == TYPES.Undefined:
         if type == TYPES.Byte:
             # Interpret numbers as byte values, to fit Pillow behaviour
-            return b''.join(min(x, 255).to_bytes(1, 'big') for x in value)
+            return ( b''.join(min(x, 255).to_bytes(1, 'big') for x in value), )
     elif target in SIMPLE_NUMERICS:
         if type in SIMPLE_NUMERICS:
             return value
