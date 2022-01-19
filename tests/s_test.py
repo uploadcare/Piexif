@@ -424,7 +424,9 @@ class ExifTests(unittest.TestCase):
                 if ifd == "0th":
                     if ImageIFD.ExifTag in exif["0th"]:
                         exif["0th"].pop(ImageIFD.ExifTag)
-                        e["0th"].pop(ImageIFD.ExifTag)
+                        # In case of invalid pointer, PIL uses
+                        # pointer value as tag value, rather than skip it
+                        e["0th"].pop(ImageIFD.ExifTag, None)
                     if ImageIFD.GPSTag in exif["0th"]:
                         exif["0th"].pop(ImageIFD.GPSTag)
                         e["0th"].pop(ImageIFD.GPSTag)

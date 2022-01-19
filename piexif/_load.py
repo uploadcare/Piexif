@@ -104,6 +104,14 @@ class _ExifReader(object):
                     raise InvalidImageDataError("Given file is neither JPEG nor TIFF.")
 
     def get_ifd_dict(self, pointer, ifd_name, read_unknown=False):
+        try:
+            result = self._do_get_ifd_dict(pointer, ifd_name, read_unknown)
+        except struct.error:
+            # Bad pointers will appear as `struct.error`
+            result = {}
+        return result
+
+    def _do_get_ifd_dict(self, pointer, ifd_name, read_unknown=False):
         ifd_dict = {}
         tag_count = struct.unpack(self.endian_mark + "H",
                                   self.tiftag[pointer: pointer+2])[0]
