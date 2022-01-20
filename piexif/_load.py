@@ -103,17 +103,16 @@ class _ExifReader(object):
                 else:
                     raise InvalidImageDataError("Given file is neither JPEG nor TIFF.")
 
+    def _unpack_from(self, format, pointer):
+        return unpack_from(self.endian_mark + format, self.tiftag, pointer)
+
     def _read_tag(self, pointer):
-        tag, value_type, value_num = unpack_from(
-            self.endian_mark + "HHL", self.tiftag, pointer
-        )
+        tag, value_type, value_num = self._unpack_from("HHL", pointer)
         # Treat unknown types as `Undefined`
         value_length = TYPE_LENGTH.get(value_type, 1)
         value_length_total = value_length * value_num
         if value_length_total > 4:
-            data_pointer = unpack_from(
-                self.endian_mark + "L", self.tiftag, pointer + 8
-            )[0]
+            data_pointer = self._unpack_from("L", pointer + 8)[0]
         else:
             data_pointer = pointer + 8
 
@@ -128,9 +127,7 @@ class _ExifReader(object):
             values = (raw_value, )
         else:
             # Unpacked types
-            values = unpack_from(
-                self.endian_mark + format * value_num, self.tiftag, data_pointer
-            )
+            values = self._unpack_from(format * value_num, data_pointer)
             # Collate rationals
             if len(format) > 1:
                 stride = len(format)
@@ -141,8 +138,7 @@ class _ExifReader(object):
 
     def get_ifd_dict(self, pointer, ifd_name, read_unknown=False):
         ifd_dict = {}
-        tag_count = unpack_from(self.endian_mark + "H",
-                                self.tiftag, pointer)[0]
+        tag_count = self._unpack_from("H", pointer)[0]
         offset = pointer + 2
         if ifd_name in ["0th", "1st"]:
             t = "Image"
@@ -163,9 +159,7 @@ class _ExifReader(object):
                     values = values[0]
                 ifd_dict[tag] = values
             elif read_unknown:
-                value_num, = unpack_from(
-                    self.endian_mark + "L", self.tiftag, pointer + 4
-                )
+                value_num, = self._unpack_from("L", pointer + 4)
                 pointer_or_value = self.tiftag[pointer + 8: pointer + 12]
                 ifd_dict[tag] = value_type, value_num, pointer_or_value, self.tiftag
             else:
