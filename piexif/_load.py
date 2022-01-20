@@ -142,7 +142,8 @@ class _ExifReader(object):
         tag_count = self._unpack_from("H", pointer)[0]
         ifd_length = 2 + 12 * tag_count
         if pointer > len(self.tiftag) - ifd_length:
-            return {}
+            # Truncate IFD
+            tag_count = (len(self.tiftag) - 2) // 12
         offset = pointer + 2
         if ifd_name in ["0th", "1st"]:
             t = "Image"
