@@ -32,7 +32,11 @@ TYPE_FORMAT = {
 }
 
 
-TYPE_LENGTH = {t: calcsize('=' + f) for t, f in TYPE_FORMAT.items() if f}
+TYPE_LENGTH = {
+    t: calcsize('=' + f)
+    for t, f in TYPE_FORMAT.items()
+    if f
+}
 
 
 SIMPLE_NUMERICS = [

@@ -109,9 +109,8 @@ class _ExifReader(object):
     def _read_tag(self, pointer):
         tag, value_type, value_num = self._unpack_from("HHL", pointer)
         # Treat unknown types as `Undefined`
-        value_length = TYPE_LENGTH.get(value_type, 1)
-        value_length_total = value_length * value_num
-        if value_length_total > 4:
+        value_length = TYPE_LENGTH.get(value_type, 1) * value_num
+        if value_length > 4:
             data_pointer = self._unpack_from("L", pointer + 8)[0]
         else:
             data_pointer = pointer + 8
@@ -122,8 +121,8 @@ class _ExifReader(object):
             # Ascii, Undefined and unknown types
             if value_type == TYPES.Ascii:
                 # Crop ending zero
-                value_length_total = max(0, value_length_total - 1)
-            raw_value = self.tiftag[data_pointer:data_pointer+value_length_total]
+                value_length = max(0, value_length - 1)
+            raw_value = self.tiftag[data_pointer:data_pointer+value_length]
             values = (raw_value, )
         else:
             # Unpacked types
