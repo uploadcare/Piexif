@@ -118,11 +118,11 @@ class _ExifReader(object):
         format = TYPE_FORMAT.get(value_type, None)
 
         if format is None:
+            raw_value = self.tiftag[data_pointer:data_pointer+value_length]
             # Ascii, Undefined and unknown types
             if value_type == TYPES.Ascii:
                 # Crop ending zero
-                value_length = max(0, value_length - 1)
-            raw_value = self.tiftag[data_pointer:data_pointer+value_length]
+                raw_value = raw_value.split(b'\0')[0]
             values = (raw_value, )
         else:
             # Unpacked types

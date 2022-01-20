@@ -663,6 +663,14 @@ class UTests(unittest.TestCase):
         ifd = er.get_ifd_dict(8, "0th", True)
         self.assertEqual(ifd[ImageIFD.ProcessingSoftware], b"FOO")
 
+    def test_ascii_zero(self):
+        b1 = b"MM\x00\x2a\x00\x00\x00\x08"
+        b2 = b"\x00\x01" + b"\x00\x0b\x00\x02\x00\x00\x00\x04" + b"F\x00OO"
+        er = piexif._load._ExifReader(b1 + b2)
+        er.endian_mark = ">"
+        ifd = er.get_ifd_dict(8, "0th", True)
+        self.assertEqual(ifd[ImageIFD.ProcessingSoftware], b"F")
+
     def test_split_into_segments_fail1(self):
         with self.assertRaises(InvalidImageDataError):
             _common.split_into_segments(b"I'm not JPEG")
