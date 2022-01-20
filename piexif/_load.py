@@ -137,7 +137,12 @@ class _ExifReader(object):
 
     def get_ifd_dict(self, pointer, ifd_name, read_unknown=False):
         ifd_dict = {}
+        if pointer > len(self.tiftag) - 2:
+            return {}
         tag_count = self._unpack_from("H", pointer)[0]
+        ifd_length = 2 + 12 * tag_count
+        if pointer > len(self.tiftag) - ifd_length:
+            return {}
         offset = pointer + 2
         if ifd_name in ["0th", "1st"]:
             t = "Image"
@@ -145,7 +150,11 @@ class _ExifReader(object):
             t = ifd_name
         for x in range(tag_count):
             pointer = offset + 12 * x
-            tag, value_type, values = self._read_tag(pointer)
+            try:
+                tag, value_type, values = self._read_tag(pointer)
+            except struct.error:
+                # Skip broken tags
+                continue
             if tag in TAGS[t]:
                 expected_value_type = TAGS[t][tag]['type']
                 if value_type != expected_value_type:
