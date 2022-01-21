@@ -34,8 +34,7 @@ def load(input_data, key_is_name=False):
     else:
         exifReader.endian_mark = ">"
 
-    pointer, = unpack_from(exifReader.endian_mark + "L",
-                          exifReader.tiftag, 4)
+    pointer, = unpack_from(exifReader.endian_mark + "L", exifReader.tiftag, 4)
     exif_dict["0th"] = exifReader.get_ifd_dict(pointer, "0th")
     first_ifd_pointer = exif_dict["0th"].pop("first_ifd_pointer")
     if ImageIFD.ExifTag in exif_dict["0th"]:
@@ -48,8 +47,7 @@ def load(input_data, key_is_name=False):
         pointer = exif_dict["Exif"][ExifIFD.InteroperabilityTag]
         exif_dict["Interop"] = exifReader.get_ifd_dict(pointer, "Interop")
     if first_ifd_pointer != b"\x00\x00\x00\x00":
-        pointer, = unpack_from(exifReader.endian_mark + "L",
-                              first_ifd_pointer)
+        pointer, = unpack_from(exifReader.endian_mark + "L", first_ifd_pointer)
         exif_dict["1st"] = exifReader.get_ifd_dict(pointer, "1st")
         if (ImageIFD.JPEGInterchangeFormat in exif_dict["1st"] and
             ImageIFD.JPEGInterchangeFormatLength in exif_dict["1st"]):
