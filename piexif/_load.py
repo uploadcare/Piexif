@@ -132,10 +132,7 @@ class _ExifReader(object):
             values = self._unpack_from(format * value_num, data_pointer)
             # Collate rationals
             if len(format) > 1:
-                stride = len(format)
-                values = tuple(
-                    values[i*stride:(i+1)*stride] for i in range(value_num)
-                )
+                values = zip(*[iter(values)] * len(format))
         return tag, value_type, tuple(values)
 
     def get_ifd_dict(self, pointer, ifd_name, read_unknown=False):
