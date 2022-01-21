@@ -589,14 +589,12 @@ class ExifTests(unittest.TestCase):
                 self.assertEqual(struct.pack("B", v2), v1)
             elif isinstance(v1, bytes) and isinstance(v2, str):
                 try:
-                    self.assertEqual(v1, v2.encode("latin1"))
+                    # PIL does not crop at zero byte, do it here
+                    self.assertEqual(v1, zero_crop(v2.encode("latin1")))
                 except:
                     self.assertEqual(v1, v2)
             else:
-                try:
-                    self.assertEqual(v1, v2.encode("latin1"))
-                except:
-                    self.assertEqual(v1, v2)
+                assert False
         else:
             self.assertEqual(v1, v2)
 
@@ -644,21 +642,32 @@ class ExifTests(unittest.TestCase):
 class UTests(unittest.TestCase):
     def test_ExifReader_return_unknown(self):
         b1 = b"MM\x00\x2a\x00\x00\x00\x08"
-        b2 = b"\x00\x01" + b"\xff\xff\x00\x00\x00\x00" + b"\x00\x00\x00\x00"
+        b2 = b"\x00\x01" + b"\xff\xff\x00\x01\x00\x00\x00\x01" + b"\x00\x00\x00\x00"
         er = piexif._load._ExifReader(b1 + b2)
         if er.tiftag[0:2] == b"II":
             er.endian_mark = "<"
         else:
             er.endian_mark = ">"
         ifd = er.get_ifd_dict(8, "0th", True)
-        self.assertEqual(ifd[65535][0], 0)
-        self.assertEqual(ifd[65535][1], 0)
-        self.assertEqual(ifd[65535][2], b"\x00\x00")
+        self.assertEqual(ifd[65535][0], 1)
+        self.assertEqual(ifd[65535][1], 1)
+        self.assertEqual(ifd[65535][2], b"\x00\x00\x00\x00")
 
-    def test_ExifReader_convert_value_fail(self):
-        er = piexif._load._ExifReader(I1)
-        with self.assertRaises(ValueError):
-            er.convert_value((None, None, None, None))
+    def test_truncated_ifd(self):
+        b1 = b"MM\x00\x2a\x00\x00\x00\x08"
+        b2 = b"\xff\xff" + b"\x00\x0b\x00\x02\x00\x00\x00\x04" + b"FOO\x00"
+        er = piexif._load._ExifReader(b1 + b2)
+        er.endian_mark = ">"
+        ifd = er.get_ifd_dict(8, "0th", True)
+        self.assertEqual(ifd[ImageIFD.ProcessingSoftware], b"FOO")
+
+    def test_ascii_zero(self):
+        b1 = b"MM\x00\x2a\x00\x00\x00\x08"
+        b2 = b"\x00\x01" + b"\x00\x0b\x00\x02\x00\x00\x00\x04" + b"F\x00OO"
+        er = piexif._load._ExifReader(b1 + b2)
+        er.endian_mark = ">"
+        ifd = er.get_ifd_dict(8, "0th", True)
+        self.assertEqual(ifd[ImageIFD.ProcessingSoftware], b"F")
 
     def test_split_into_segments_fail1(self):
         with self.assertRaises(InvalidImageDataError):
@@ -1051,6 +1060,9 @@ def suite():
     ])
     return suite
 
+
+def zero_crop(x):
+    return x.split(b'\0')[0]
 
 if __name__ == '__main__':
     unittest.main()

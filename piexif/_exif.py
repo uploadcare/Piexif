@@ -1,3 +1,6 @@
+from struct import calcsize
+
+
 class TYPES:
     Byte = 1
     Ascii = 2
@@ -11,6 +14,29 @@ class TYPES:
     SRational = 10
     Float = 11
     DFloat = 12
+
+
+TYPE_FORMAT = {
+    TYPES.Byte: 'B',
+    TYPES.Ascii: None,
+    TYPES.Short: 'H',
+    TYPES.Long: 'L',
+    TYPES.Rational: 'LL',
+    TYPES.SByte: 'b',
+    TYPES.Undefined: None,
+    TYPES.SShort: 'h',
+    TYPES.SLong: 'l',
+    TYPES.SRational: 'll',
+    TYPES.Float: 'f',
+    TYPES.DFloat: 'd',
+}
+
+
+TYPE_LENGTH = {
+    t: calcsize('=' + f)
+    for t, f in TYPE_FORMAT.items()
+    if f
+}
 
 
 SIMPLE_NUMERICS = [
