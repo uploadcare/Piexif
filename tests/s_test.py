@@ -644,15 +644,15 @@ class ExifTests(unittest.TestCase):
 class UTests(unittest.TestCase):
     def test_ExifReader_return_unknown(self):
         b1 = b"MM\x00\x2a\x00\x00\x00\x08"
-        b2 = b"\x00\x01" + b"\xff\xff\x00\x00\x00\x00\x00\x00" + b"\x00\x00\x00\x00"
+        b2 = b"\x00\x01" + b"\xff\xff\x00\x01\x00\x00\x00\x01" + b"\x00\x00\x00\x00"
         er = piexif._load._ExifReader(b1 + b2)
         if er.tiftag[0:2] == b"II":
             er.endian_mark = "<"
         else:
             er.endian_mark = ">"
         ifd = er.get_ifd_dict(8, "0th", True)
-        self.assertEqual(ifd[65535][0], 0)
-        self.assertEqual(ifd[65535][1], 0)
+        self.assertEqual(ifd[65535][0], 1)
+        self.assertEqual(ifd[65535][1], 1)
         self.assertEqual(ifd[65535][2], b"\x00\x00\x00\x00")
 
     def test_truncated_ifd(self):

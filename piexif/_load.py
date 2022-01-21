@@ -108,12 +108,15 @@ class _ExifReader(object):
 
     def _read_tag(self, pointer):
         tag, value_type, value_num = self._unpack_from("HHL", pointer)
-        # Treat unknown types as `Undefined`
+        if value_type not in TYPE_FORMAT:
+            return None
         value_length = TYPE_LENGTH.get(value_type, 1) * value_num
         if value_length > 4:
             data_pointer = self._unpack_from("L", pointer + 8)[0]
         else:
             data_pointer = pointer + 8
+        if data_pointer + value_length > len(self.tiftag):
+            return None
 
         format = TYPE_FORMAT.get(value_type, None)
 
@@ -151,11 +154,11 @@ class _ExifReader(object):
             t = ifd_name
         for x in range(tag_count):
             pointer = offset + 12 * x
-            try:
-                tag, value_type, values = self._read_tag(pointer)
-            except struct.error:
+            read_result = self._read_tag(pointer)
+            if not read_result:
                 # Skip broken tags
                 continue
+            tag, value_type, values = read_result
             if tag in TAGS[t]:
                 expected_value_type = TAGS[t][tag]['type']
                 if value_type != expected_value_type:
