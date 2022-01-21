@@ -589,14 +589,12 @@ class ExifTests(unittest.TestCase):
                 self.assertEqual(struct.pack("B", v2), v1)
             elif isinstance(v1, bytes) and isinstance(v2, str):
                 try:
-                    self.assertEqual(v1, v2.encode("latin1"))
+                    # PIL does not crop at zero byte, do it here
+                    self.assertEqual(v1, zero_crop(v2.encode("latin1")))
                 except:
                     self.assertEqual(v1, v2)
             else:
-                try:
-                    self.assertEqual(v1, v2.encode("latin1"))
-                except:
-                    self.assertEqual(v1, v2)
+                assert False
         else:
             self.assertEqual(v1, v2)
 
@@ -1062,6 +1060,9 @@ def suite():
     ])
     return suite
 
+
+def zero_crop(x):
+    return x.split(b'\0')[0]
 
 if __name__ == '__main__':
     unittest.main()
