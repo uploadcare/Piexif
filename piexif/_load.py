@@ -7,6 +7,7 @@ from ._exif import *
 from piexif import _webp
 
 LITTLE_ENDIAN = b"\x49\x49"
+NEXT_IFD_TAG = "next_ifd"
 
 
 def load(input_data, key_is_name=False):
@@ -25,30 +26,23 @@ def load(input_data, key_is_name=False):
                  "Interop":{},
                  "1st":{},
                  "thumbnail":None}
-    exifReader = _ExifReader(input_data)
-    if exifReader.tiftag is None:
+    exifReader = _ExifReader.from_image(input_data)
+    if exifReader is None:
         return exif_dict
 
-    if exifReader.tiftag[0:2] == LITTLE_ENDIAN:
-        exifReader.endian_mark = "<"
-    else:
-        exifReader.endian_mark = ">"
-
-    pointer, = unpack_from(exifReader.endian_mark + "L", exifReader.tiftag, 4)
-    exif_dict["0th"] = exifReader.get_ifd_dict(pointer, "0th")
-    first_ifd_pointer = exif_dict["0th"].pop("first_ifd_pointer")
-    if ImageIFD.ExifTag in exif_dict["0th"]:
-        pointer = exif_dict["0th"][ImageIFD.ExifTag]
-        exif_dict["Exif"] = exifReader.get_ifd_dict(pointer, "Exif")
-    if ImageIFD.GPSTag in exif_dict["0th"]:
-        pointer = exif_dict["0th"][ImageIFD.GPSTag]
-        exif_dict["GPS"] = exifReader.get_ifd_dict(pointer, "GPS")
-    if ExifIFD.InteroperabilityTag in exif_dict["Exif"]:
-        pointer = exif_dict["Exif"][ExifIFD.InteroperabilityTag]
-        exif_dict["Interop"] = exifReader.get_ifd_dict(pointer, "Interop")
-    if first_ifd_pointer != b"\x00\x00\x00\x00":
-        pointer, = unpack_from(exifReader.endian_mark + "L", first_ifd_pointer)
-        exif_dict["1st"] = exifReader.get_ifd_dict(pointer, "1st")
+    exif_dict["0th"] = exifReader.get_ifd_dict(exifReader.root_pointer, "0th", read_next=True)
+    first_ifd_pointer = exif_dict["0th"].pop(NEXT_IFD_TAG, 0)
+    CHILD_IFDS = [
+        ("Exif", "0th", ImageIFD.ExifTag),
+        ("GPS", "0th", ImageIFD.GPSTag),
+        ("Interop", "Exif", ExifIFD.InteroperabilityTag),
+    ]
+    for name, parent, tag in CHILD_IFDS:
+        if tag in exif_dict[parent]:
+            pointer = exif_dict[parent][tag]
+            exif_dict[name] = exifReader.get_ifd_dict(pointer, name)
+    if first_ifd_pointer:
+        exif_dict["1st"] = exifReader.get_ifd_dict(first_ifd_pointer, "1st")
         if (ImageIFD.JPEGInterchangeFormat in exif_dict["1st"] and
             ImageIFD.JPEGInterchangeFormatLength in exif_dict["1st"]):
             end = (exif_dict["1st"][ImageIFD.JPEGInterchangeFormat] +
@@ -62,44 +56,40 @@ def load(input_data, key_is_name=False):
 
 
 class _ExifReader(object):
-    def __init__(self, data):
-        # Prevents "UnicodeWarning: Unicode equal comparison failed" warnings on Python 2
-        maybe_image = sys.version_info >= (3,0,0) or isinstance(data, str)
-
-        if maybe_image and data[0:2] == b"\xff\xd8":  # JPEG
+    @classmethod
+    def from_image(cls, data, treat_as_path=True):
+        if data[0:2] == b"\xff\xd8":  # JPEG
             segments = split_into_segments(data)
             app1 = get_exif_seg(segments)
             if app1:
-                self.tiftag = app1[10:]
+                tiff_data = app1[10:]
             else:
-                self.tiftag = None
-        elif maybe_image and data[0:2] in (b"\x49\x49", b"\x4d\x4d"):  # TIFF
-            self.tiftag = data
-        elif maybe_image and data[0:4] == b"RIFF" and data[8:12] == b"WEBP":
-            self.tiftag = _webp.get_exif(data)
-        elif maybe_image and data[0:4] == b"Exif":  # Exif
-            self.tiftag = data[6:]
+                tiff_data = None
+        elif data[0:2] in (b"\x49\x49", b"\x4d\x4d"):  # TIFF
+            tiff_data = data
+        elif data[0:4] == b"RIFF" and data[8:12] == b"WEBP":
+            tiff_data = _webp.get_exif(data)
+        elif data[0:4] == b"Exif":  # Exif
+            tiff_data = data[6:]
         else:
-            with open(data, 'rb') as f:
-                magic_number = f.read(2)
-            if magic_number == b"\xff\xd8":  # JPEG
-                app1 = read_exif_from_file(data)
-                if app1:
-                    self.tiftag = app1[10:]
-                else:
-                    self.tiftag = None
-            elif magic_number in (b"\x49\x49", b"\x4d\x4d"):  # TIFF
+            if treat_as_path:
                 with open(data, 'rb') as f:
-                    self.tiftag = f.read()
+                    return cls.from_image(f.read(), False)
             else:
-                with open(data, 'rb') as f:
-                    header = f.read(12)
-                if header[0:4] == b"RIFF"and header[8:12] == b"WEBP":
-                    with open(data, 'rb') as f:
-                        file_data = f.read()
-                    self.tiftag = _webp.get_exif(file_data)
-                else:
-                    raise InvalidImageDataError("Given file is neither JPEG nor TIFF.")
+                raise InvalidImageDataError("Given image is neither JPEG, WEBP nor TIFF.")
+        if not tiff_data:
+            return None
+        return cls(tiff_data)
+
+    def __init__(self, data):
+        if len(data) < 8:
+            raise InvalidImageDataError("TIFF too short")
+        self.tiftag = data
+        if self.tiftag[0:2] == LITTLE_ENDIAN:
+            self.endian_mark = "<"
+        else:
+            self.endian_mark = ">"
+        self.root_pointer, = self._unpack_from("L",  4)
 
     def _unpack_from(self, format, pointer):
         return unpack_from(self.endian_mark + format, self.tiftag, pointer)
@@ -133,7 +123,7 @@ class _ExifReader(object):
                 values = zip(*[iter(values)] * len(format))
         return tag, value_type, tuple(values)
 
-    def get_ifd_dict(self, pointer, ifd_name, read_unknown=False):
+    def get_ifd_dict(self, pointer, ifd_name, read_unknown=False, read_next=False):
         ifd_dict = {}
         if pointer > len(self.tiftag) - 2:
             return {}
@@ -169,9 +159,14 @@ class _ExifReader(object):
             else:
                 pass
 
-        if ifd_name == "0th":
+        if read_next:
             pointer = offset + 12 * tag_count
-            ifd_dict["first_ifd_pointer"] = self.tiftag[pointer:pointer + 4]
+            if pointer + 4 < len(self.tiftag):
+                next, = self._unpack_from("L", pointer) or None
+            else:
+                next = None
+            ifd_dict[NEXT_IFD_TAG] = next
+
         return ifd_dict
 
 
