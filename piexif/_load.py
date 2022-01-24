@@ -40,6 +40,9 @@ def load(input_data, key_is_name=False):
     for name, parent, tag in CHILD_IFDS:
         if tag in exif_dict[parent]:
             pointer = exif_dict[parent][tag]
+            if isinstance(pointer, tuple):
+                # To catch cases, where there are zero or multiple values
+                continue
             exif_dict[name] = exifReader.get_ifd_dict(pointer, name)
     if first_ifd_pointer:
         exif_dict["1st"] = exifReader.get_ifd_dict(first_ifd_pointer, "1st")
