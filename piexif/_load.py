@@ -7,7 +7,6 @@ from ._exif import *
 from piexif import _webp
 
 LITTLE_ENDIAN = b"\x49\x49"
-NEXT_IFD_TAG = "next_ifd"
 
 
 def load(input_data, key_is_name=False):
@@ -30,8 +29,7 @@ def load(input_data, key_is_name=False):
     if exifReader is None:
         return exif_dict
 
-    exif_dict["0th"] = exifReader.get_ifd_dict(exifReader.root_pointer, "0th", read_next=True)
-    first_ifd_pointer = exif_dict["0th"].pop(NEXT_IFD_TAG, 0)
+    exif_dict["0th"], first_ifd_pointer = exifReader.get_ifd_dict(exifReader.root_pointer, "0th")
     CHILD_IFDS = [
         ("Exif", "0th", ImageIFD.ExifTag),
         ("GPS", "0th", ImageIFD.GPSTag),
@@ -43,9 +41,9 @@ def load(input_data, key_is_name=False):
             if isinstance(pointer, tuple):
                 # To catch cases, where there are zero or multiple values
                 continue
-            exif_dict[name] = exifReader.get_ifd_dict(pointer, name)
+            exif_dict[name] = exifReader.get_ifd_dict(pointer, name)[0]
     if first_ifd_pointer:
-        exif_dict["1st"] = exifReader.get_ifd_dict(first_ifd_pointer, "1st")
+        exif_dict["1st"] = exifReader.get_ifd_dict(first_ifd_pointer, "1st")[0]
         if (ImageIFD.JPEGInterchangeFormat in exif_dict["1st"] and
             ImageIFD.JPEGInterchangeFormatLength in exif_dict["1st"]):
             end = (exif_dict["1st"][ImageIFD.JPEGInterchangeFormat] +
@@ -126,10 +124,10 @@ class _ExifReader(object):
                 values = zip(*[iter(values)] * len(format))
         return tag, value_type, tuple(values)
 
-    def get_ifd_dict(self, pointer, ifd_name, read_unknown=False, read_next=False):
+    def get_ifd_dict(self, pointer, ifd_name, read_unknown=False):
         ifd_dict = {}
         if pointer > len(self.tiftag) - 2:
-            return {}
+            return {}, None
         tag_count, = self._unpack_from("H", pointer)
         offset = pointer + 2
         tag_count = min(tag_count, (len(self.tiftag) - offset) // 12)
@@ -162,15 +160,15 @@ class _ExifReader(object):
             else:
                 pass
 
-        if read_next:
-            pointer = offset + 12 * tag_count
-            if pointer + 4 < len(self.tiftag):
-                next, = self._unpack_from("L", pointer) or None
-            else:
+        pointer = offset + 12 * tag_count
+        if pointer + 4 < len(self.tiftag):
+            next, = self._unpack_from("L", pointer)
+            if not next:
                 next = None
-            ifd_dict[NEXT_IFD_TAG] = next
+        else:
+            next = None
 
-        return ifd_dict
+        return ifd_dict, next
 
 
 def _get_key_name_dict(exif_dict):
