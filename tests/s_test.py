@@ -644,10 +644,6 @@ class UTests(unittest.TestCase):
         b1 = b"MM\x00\x2a\x00\x00\x00\x08"
         b2 = b"\x00\x01" + b"\xff\xff\x00\x01\x00\x00\x00\x01" + b"\x00\x00\x00\x00"
         er = piexif._load._ExifReader(b1 + b2)
-        if er.tiftag[0:2] == b"II":
-            er.endian_mark = "<"
-        else:
-            er.endian_mark = ">"
         ifd = er.get_ifd_dict(8, "0th", True)
         self.assertEqual(ifd[65535][0], 1)
         self.assertEqual(ifd[65535][1], 1)
@@ -657,7 +653,6 @@ class UTests(unittest.TestCase):
         b1 = b"MM\x00\x2a\x00\x00\x00\x08"
         b2 = b"\xff\xff" + b"\x00\x0b\x00\x02\x00\x00\x00\x04" + b"FOO\x00"
         er = piexif._load._ExifReader(b1 + b2)
-        er.endian_mark = ">"
         ifd = er.get_ifd_dict(8, "0th", True)
         self.assertEqual(ifd[ImageIFD.ProcessingSoftware], b"FOO")
 
@@ -665,9 +660,16 @@ class UTests(unittest.TestCase):
         b1 = b"MM\x00\x2a\x00\x00\x00\x08"
         b2 = b"\x00\x01" + b"\x00\x0b\x00\x02\x00\x00\x00\x04" + b"F\x00OO"
         er = piexif._load._ExifReader(b1 + b2)
-        er.endian_mark = ">"
         ifd = er.get_ifd_dict(8, "0th", True)
         self.assertEqual(ifd[ImageIFD.ProcessingSoftware], b"F")
+
+    def test_no_first_ifd(self):
+        input = b'Exif\x00\x00II*\x00\x08\x00\x00\x00'
+        result = piexif._load.load(input)
+        self.assertEqual(
+            {'0th': {}, 'Exif': {}, 'GPS': {}, 'Interop': {}, '1st': {}, 'thumbnail': None},
+            result
+        )
 
     def test_split_into_segments_fail1(self):
         with self.assertRaises(InvalidImageDataError):
