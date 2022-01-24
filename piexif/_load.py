@@ -83,9 +83,13 @@ class _ExifReader(object):
         return cls(tiff_data)
 
     def __init__(self, data):
-        if len(data) < 8:
-            raise InvalidImageDataError("TIFF too short")
         self.tiftag = data
+        if len(data) < 8:
+            # `get_ifd` will consider it cropped IFD and return `[]`,
+            # which is reasonable behaviour
+            self.endian_mark = ">"
+            self.root_pointer = 0
+            return
         if self.tiftag[0:2] == LITTLE_ENDIAN:
             self.endian_mark = "<"
         else:

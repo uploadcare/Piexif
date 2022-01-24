@@ -15,6 +15,7 @@ from piexif import _common, ImageIFD, ExifIFD, GPSIFD, TAGS, InvalidImageDataErr
 from piexif import _webp
 from piexif import helper
 
+import pytest
 
 print("piexif version: {}".format(piexif.VERSION))
 
@@ -664,12 +665,13 @@ class UTests(unittest.TestCase):
         self.assertEqual(ifd[ImageIFD.ProcessingSoftware], b"F")
 
     def test_no_first_ifd(self):
-        input = b'Exif\x00\x00II*\x00\x08\x00\x00\x00'
-        result = piexif._load.load(input)
-        self.assertEqual(
-            {'0th': {}, 'Exif': {}, 'GPS': {}, 'Interop': {}, '1st': {}, 'thumbnail': None},
-            result
-        )
+        input = b'Exif\x00\x00II*\x00\x08\x00\x00\x00\00'
+        for l in range(4, len(input)):
+            result = piexif._load.load(input[:l])
+            self.assertEqual(
+                {'0th': {}, 'Exif': {}, 'GPS': {}, 'Interop': {}, '1st': {}, 'thumbnail': None},
+                result
+            )
 
     def test_split_into_segments_fail1(self):
         with self.assertRaises(InvalidImageDataError):
