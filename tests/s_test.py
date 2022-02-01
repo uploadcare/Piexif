@@ -15,8 +15,6 @@ from piexif import _common, ImageIFD, ExifIFD, GPSIFD, TAGS, InvalidImageDataErr
 from piexif import _webp
 from piexif import helper
 
-import pytest
-
 print("piexif version: {}".format(piexif.VERSION))
 
 
