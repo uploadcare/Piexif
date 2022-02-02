@@ -143,7 +143,7 @@ class ExifLoader(object):
 
         thumb_off = self._get("1st", ImageIFD.JPEGInterchangeFormat)
         thumb_len = self._get("1st", ImageIFD.JPEGInterchangeFormatLength)
-        if thumb_off and thumb_len:
+        if isinstance(thumb_off, int) and isinstance(thumb_len, int):
             thumb = self._tiff_data[thumb_off:thumb_off + thumb_len]
             self.exif["thumbnail"] = thumb
 
