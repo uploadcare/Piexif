@@ -44,11 +44,11 @@ def load(input_data, key_is_name=False):
             exif_dict[name] = exifReader.get_ifd_dict(pointer, name)[0]
     if first_ifd_pointer:
         exif_dict["1st"] = exifReader.get_ifd_dict(first_ifd_pointer, "1st")[0]
-        if (ImageIFD.JPEGInterchangeFormat in exif_dict["1st"] and
-            ImageIFD.JPEGInterchangeFormatLength in exif_dict["1st"]):
-            end = (exif_dict["1st"][ImageIFD.JPEGInterchangeFormat] +
-                   exif_dict["1st"][ImageIFD.JPEGInterchangeFormatLength])
-            thumb = exifReader.tiftag[exif_dict["1st"][ImageIFD.JPEGInterchangeFormat]:end]
+        start = exif_dict["1st"].get(ImageIFD.JPEGInterchangeFormat, None)
+        length = exif_dict["1st"].get(ImageIFD.JPEGInterchangeFormatLength, None)
+        if isinstance(start, int) and isinstance(length, int):
+            end = start + length
+            thumb = exifReader.tiftag[start:end]
             exif_dict["thumbnail"] = thumb
 
     if key_is_name:

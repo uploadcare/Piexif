@@ -662,6 +662,18 @@ class UTests(unittest.TestCase):
         ifd = er.get_ifd_dict(8, "0th", True)[0]
         self.assertEqual(ifd[ImageIFD.ProcessingSoftware], b"F")
 
+    def test_bad_thumb(self):
+        b1 = b"MM\x00\x2a\x00\x00\x00\x08"
+        zero = b"\x00\x01\x87\x69\x00\x04\x00\x00\x00\x01\x00\x00\x00\x1a\x00\x00\x00\x1a"
+        first = (
+            b"\x00\x02" +
+            b"\x02\x01\x00\x01\x00\x00\x00\x03\x01\x02\x03\x04" +
+            b"\x02\x02\x00\x01\x00\x00\x00\x03\x01\x02\x03\x04"
+        )
+        result = piexif._load.load(b1 + zero + first)
+        # should not crash
+        assert result
+
     def test_no_first_ifd(self):
         input = b'Exif\x00\x00II*\x00\x08\x00\x00\x00\00'
         for l in range(4, len(input)):
